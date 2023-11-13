@@ -1,0 +1,30 @@
+Plan:
+1. The Execute Test Plan: is always 1 Hour
+2. The Plan: phase will only contain these tasks with time:
+Project Management Services:
+Record project plan in ConnectWise
+Procurement
+Project documentation assignment to PEs
+Knowledge transfer to PEs
+Project coordination with stakeholders
+Resource scheduling
+Determine end user communication plan with client
+Prepare for and conduct, project status meetings
+
+
+Optimize:
+The optimize phase, estimate the hours and they have to only contains these tasks:
+Optimize Solution Configuration:
+On-site and remote standby support
+Resolve operational anomalies
+
+Solution Peer Review:
+Review completed work
+Report delta to PE
+Remediate outstanding nonstandard configurations
+
+Project Closure:
+Enter configuration documentation into IT Glue and ConnectWise
+Knowledge transfer meeting to support staff
+Client verification of solution
+Project closure

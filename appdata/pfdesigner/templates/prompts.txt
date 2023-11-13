@@ -1,0 +1,2 @@
+Replace 1 existing Meraki firewall for 2 new Sonicwall firewalls
+change the new firewalls to (3) and calculate the Hours with multiplier (3)

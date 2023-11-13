@@ -1,0 +1,21 @@
+cookie:
+  expiry_days: 7
+  key: random_signature_key
+  name: random_cookie_name
+credentials:
+  usernames:
+    adam@projectfuelnow.com:
+      email: adam@projectfuelnow.com
+      name: Adam G
+      password: $2b$12$j4E8xuWT7J1vHEid9fCwsudFmuqibt26nTjmgAmUH5X7PBFl3ZRR.
+    angel@projectfuelnow.com:
+      email: angel@projectfuelnow.com
+      name: Angel Paruas
+      password: $2b$12$4pNeJLOnVeeiOpUTIVugguqbTfY8lv4Z6NRIjoW3UUs4tg/.troCW
+    howard@projectfuelnow.com:
+      email: howard@projectfuelnow.com
+      name: Howard B
+      password: $2b$12$.Mw55G48VWQsNbIbvbdTEuseGxXHw5PIiHRwDWJTKGLYqzRjk1BTC
+preauthorized:
+  emails:
+  - angel@projectfuelnowx.com
