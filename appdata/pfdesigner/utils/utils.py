@@ -1,9 +1,11 @@
 #utils.py
 import re
-import openpyxl
 import io
+import openpyxl
+from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.utils.dataframe import dataframe_to_rows
 import pandas as pd
+from pandas import DataFrame
 
 def number_to_letter(n):
     if 1 <= n <= 26:
@@ -11,14 +13,31 @@ def number_to_letter(n):
     else:
         return None  # Handle values outside the range a-z
 
-def find_cell_matches(match,worksheet):
+def find_cell_variables(content):
+    import streamlit as st
+    pattern = r'<(.*?)>'
+    #pattern = r'<([^<>]+)>'
     found_cells = []
-    for row in worksheet.iter_rows(values_only=True):
-        for cell_value in row:
-            if isinstance(cell_value, str):
-                matches = re.findall(match, cell_value)
-                if matches:
-                    found_cells.append(cell_value)
+    if isinstance(content, DataFrame):
+        for index, row in content.iterrows():
+            for column, cell_value in row.items():
+                if isinstance(cell_value, str):
+                    matches = re.findall(pattern, cell_value)
+                    if matches:
+                        found_cells.append(cell_value)
+    elif isinstance(content, Worksheet):
+        for row in content.iter_rows(values_only=True):
+            for cell_value in row:
+                if isinstance(cell_value, str):
+                    matches = re.findall(pattern, cell_value)
+                    if matches:
+                        found_cells.append(cell_value)
+    elif isinstance(content, list):
+        for word in content:
+            matches = re.findall(pattern, word)
+            found_cells.extend(matches)
+    else:
+        print('Error in function find_cell_matches')
     return found_cells
 
 def replace_cell_in_coordinates(workbook : openpyxl.Workbook,new_cell_values : list):
@@ -48,7 +67,7 @@ def get_variables_from_excel(client):
     pattern = r'<(.*?)>'
     workbook = openpyxl.load_workbook(f"./templates/clients/{client}/Template.xlsx")
     worksheet = workbook.active
-    cell_values = find_cell_matches(match=pattern,worksheet=worksheet)
+    cell_values = find_cell_variables(worksheet)
     workbook.close
     return cell_values
 

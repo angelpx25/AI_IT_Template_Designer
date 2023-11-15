@@ -131,7 +131,4 @@ def sidebar():
             else:
                 debugmode = False
                 pvalues['mwin'] = 0
-        st.markdown('Version: 0.05 By Angel Paruas')
-        st.caption(settings.HOME_PRIVACY)
-        st.caption(settings.HOME_CONTACT)
     return debugmode,pvalues,client,phase,procedure,technology,make,products,notes

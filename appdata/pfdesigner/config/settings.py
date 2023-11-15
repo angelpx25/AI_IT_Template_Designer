@@ -9,3 +9,4 @@ HOME_INTRODUCTION="Welcome to Project Fuel Template Designer, This tool was deve
 HOME_PRIVACY="Every content in this tool is property of Project Fuel LLC"
 HOME_CONTACT="For more infromation contact angel@projectfuelnow.com"
 AUTH_CONTACT="To register please contact ddintake@projectfuelnow.com"
+PROPOSAL_PAGE_WIDTH=36

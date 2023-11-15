@@ -1,7 +1,7 @@
 import yaml
 import config.settings as settings
 import streamlit as st
-from page.home import page
+from page.home import home
 
 def main(config, authenticator, name, authentication_status, username):
     if authentication_status:
@@ -47,7 +47,7 @@ def main(config, authenticator, name, authentication_status, username):
             except Exception as e:
                 st.error("Password is incorrect!")
         else:
-            page()
+            home()
     elif authentication_status == False:
         st.error('Username/password is incorrect')
         hide_streamlit_style = """

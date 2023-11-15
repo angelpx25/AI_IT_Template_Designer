@@ -3,10 +3,9 @@
 import page.sidebar as sb
 import streamlit as st
 import utils.utils as ut
-import pandas as pd
-import io
+import config.settings as settings
 
-def page():
+def home():
     debugmode,pvalues,client,phase,procedure,technology,make,products,notes = sb.sidebar()
     proposal_name = pvalues['pname'] if pvalues['pname'] != '' else "Proposal Name"
     st.subheader(proposal_name, divider="grey")
@@ -32,9 +31,21 @@ def page():
                     content = content.to_csv(index=False, header=False,sep='\t',lineterminator='\n')
                     st.code(content.replace('-', ' '))
                 else:
-                    content = content.replace('-', '-', regex=True)
-                    content = content.applymap(lambda x: x.lstrip('*') if isinstance(x, str) else x)
-                    st.table(content)
+                    found_variables = ut.find_cell_variables(content)
+                    found_variables = ut.find_cell_variables(found_variables)
+                    variables = {}
+                    with st.sidebar.expander('Procedure Settings'):
+                        for variable in found_variables:
+                            if 'make' != variable:
+                                if variable not in variables.keys():
+                                    variables[variable] = st.text_input(variable)
+                                    content.replace(f"<{variable}>", variables[variable],inplace=True,regex=True)
+                        content = content.applymap(lambda x: x.lstrip('*') if isinstance(x, str) else x)
+                    content.replace('<make>', make, regex=True, inplace=True)
+                    content.replace('-', '   ', regex=True, inplace=True)
+                    if debugmode:
+                        st.write(len(content))
+                    st.dataframe(content,hide_index=True,use_container_width=True,height=len(content)*settings.PROPOSAL_PAGE_WIDTH)
             except Exception as e:
                 if debugmode:
                     st.error(f"Fix the following error {e}")

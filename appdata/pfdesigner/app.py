@@ -2,6 +2,7 @@
 
 import streamlit as st
 import config.config
+import config.settings as settings
 import page.login
 import page.main
 from PIL import Image
@@ -49,6 +50,13 @@ else:
             </style>
             """
     st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+if st.session_state['authentication_status'] == False:
+    st.error('Username / Password is wrong.')
+
+with st.sidebar:
+    st.markdown('Version: 0.05 By Angel Paruas')
+    st.caption(settings.HOME_PRIVACY)
+    st.caption(settings.HOME_CONTACT)
     
 
 
