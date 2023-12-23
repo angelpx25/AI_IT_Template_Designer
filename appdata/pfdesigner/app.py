@@ -30,9 +30,18 @@ if st.session_state['name']:
             .css-eczf16 {display: none;}
             .css-jn99sy {display: none;}
             .css-1629p8f span {text-align: center;}
+            button[data-testid="StyledFullScreenButton"] {visibility: hidden;}
             </style>
             """
     st.markdown(hide_streamlit_style, unsafe_allow_html=True) 
+    with st.sidebar:
+        col1,col2 = st.columns(2)
+        with col1:
+            st.markdown('Version: 0.05 By Angel Paruas')
+        with col2:
+            st.toggle(label="Debug Mode",key='debugmode')
+        st.caption(settings.HOME_PRIVACY)
+        st.caption(settings.HOME_CONTACT)
 else:
     st.image(image=Image.open('./images/Project-Fuel-logo.png'))
     name, authentication_status, username = page.login.login(authenticator)
@@ -47,16 +56,12 @@ else:
             .css-jn99sy {display: none;}
             .css-1629p8f span {text-align: center;}
             .css-z5fcl4 {padding-left: 35%; padding-right: 35%;}
+            button[data-testid="StyledFullScreenButton"] {visibility: hidden;}
             </style>
             """
     st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 if st.session_state['authentication_status'] == False:
     st.error('Username / Password is wrong.')
-
-with st.sidebar:
-    st.markdown('Version: 0.05 By Angel Paruas')
-    st.caption(settings.HOME_PRIVACY)
-    st.caption(settings.HOME_CONTACT)
     
 
 

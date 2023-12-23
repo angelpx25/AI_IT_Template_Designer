@@ -1,4 +1,8 @@
 #utils.py
+import requests
+from msal import ConfidentialClientApplication
+from office365.sharepoint.client_context import ClientContext
+
 import re
 import io
 import openpyxl
@@ -40,6 +44,36 @@ def find_cell_variables(content):
         print('Error in function find_cell_matches')
     return found_cells
 
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+def insert_content(pvalues):
+    import streamlit as st
+    content_to_insert = {'Technology': pvalues['technology'],'Make': pvalues['make'],'Procedure': pvalues['procedure']}
+
+    content = {'Technology': st.session_state['Technology'],
+               'Make': st.session_state['Make'],
+               'Procedure': st.session_state['Procedure']}
+
+    content_df = pd.DataFrame(content)
+
+    content_combined = pd.concat([content_df, pd.DataFrame([content_to_insert])])
+    for duplicated in content_combined.duplicated():
+        if duplicated:
+            st.warning('Content is duplicated')
+            break
+    content_combined = content_combined.drop_duplicates()
+    if not content_combined.empty:
+        st.session_state['Technology'] = content_combined['Technology'].tolist()
+        st.session_state['Make'] = content_combined['Make'].tolist()
+        st.session_state['Procedure'] = content_combined['Procedure'].tolist()
+    else:
+        st.sidebar.warning('Content to insert empty')
+
 def replace_cell_in_coordinates(workbook : openpyxl.Workbook,new_cell_values : list):
     worksheet = workbook.active
     for cell_value in new_cell_values:
@@ -63,9 +97,9 @@ def read_text_file(file_path):
         print(f"An error occurred: {e}")
         return None
     
-def get_variables_from_excel(client):
+def get_variables_from_excel(path):
     pattern = r'<(.*?)>'
-    workbook = openpyxl.load_workbook(f"./templates/clients/{client}/Template.xlsx")
+    workbook = openpyxl.load_workbook(path)
     worksheet = workbook.active
     cell_values = find_cell_variables(worksheet)
     workbook.close
@@ -154,33 +188,175 @@ def insert_dataframe_in_excel(workbook,content: pd.DataFrame):
             else:
                 print(f"Cell with value '{target_value}' not found.")
     return workbook
+
+
+def extract_phase(current_phase:str,content:pd.DataFrame):
+    phase_mapping = {
+                'Plan': 'Prepare:',
+                'Prepare': 'Implement:',
+                'Implement': 'Operate:',
+                'Operate': '*Execute Test Plan:',
+                '*Execute Test Plan': 'Optimize:',
+                'Optimize': 'Project closure'
+            }
+    if current_phase == 'All':
+        phase_content = content
+    elif current_phase in phase_mapping:
+        phase_index = content[content['Task'] == current_phase + ':'].index[0]
+        next_phase = phase_mapping[current_phase]
+        next_phase_index = content[content['Task'] == next_phase].index[0] if next_phase in content['Task'].values else len(content)
+        phase_content = content.loc[phase_index:next_phase_index-1]
+    else:
+        phase_index = content[content['Task'] == current_phase + ':'].index[0]
+        phase_content = content.loc[phase_index:]
+    return phase_content
+
+
+def prepare_content(sbvalues:dict,data:dict,templates_path:str):
+    #client_file_path = f"./templates/clients/{client}/{client}.txt"
+    #client_file_content = read_text_file(client_file_path)
+
+    #procedure_file_path = f"./templates/procedures/{procedure}/{technology}.txt"
+    #procedure_file_content = read_text_file(procedure_file_path)
+    phase_mapping = {
+                'Plan': 'Prepare:',
+                'Prepare': 'Implement:',
+                'Implement': 'Operate:',
+                'Operate': '*Execute Test Plan:',
+                '*Execute Test Plan': 'Optimize:',
+                'Optimize': 'Project closure'
+            }
+    df_list = []
+    df_combined = pd.DataFrame()
+
+    for index,procedure in enumerate(data['Procedure']):
+        try:
+            procedure_file_path = templates_path + f"/{sbvalues['library']}/procedures/{procedure}/{data['Technology'][index]}.txt"
+            procedure_file_content = read_text_file(procedure_file_path)
+            content = pd.read_csv(io.StringIO(procedure_file_content), sep='|')
+            df_list.append(extract_phase(current_phase=data['Phase'][index],content=content))
+        except Exception as e:
+            print(f"Error processing procedure {procedure}: {e}")
     
-def prepare_content(client,phase,procedure,technology):
-    client_file_path = f"./templates/clients/{client}/{client}.txt"
-    procedure_file_path = f"./templates/procedures/{procedure}/{technology}.txt"
-    client_file_content = read_text_file(client_file_path)
-    procedure_file_content = read_text_file(procedure_file_path)
-    try:
-        content = pd.read_csv(io.StringIO(procedure_file_content), sep='|')
-        phase_mapping = {
-            'Plan': 'Prepare:',
-            'Prepare': 'Implement:',
-            'Implement': 'Operate:',
-            'Operate': 'Optimize:',
-            'Optimize': 'Project closure'
-        }
-        if phase == 'All':
-            phase_content = content
-        elif phase in phase_mapping:
-            phase_index = content[content['Task'] == phase + ':'].index[0]
-            next_phase = phase_mapping[phase]
-            next_phase_index = content[content['Task'] == next_phase].index[0]
-            phase_content = content.loc[phase_index:next_phase_index-1]
-        else:
-            phase_index = content[content['Task'] == phase + ':'].index[0]
-            phase_content = content.loc[phase_index:]
-        content = phase_content
-        #content = content.replace('-', ' ')
-        return content
-    except Exception as e:
-        print(e)
+    for phase in phase_mapping:
+        first = True
+        for df in df_list:
+            try:
+                if first:
+                    df_combined = pd.concat([df_combined,extract_phase(current_phase=phase,content=df)])
+                    first = False
+                else:
+                    df_combined = pd.concat([df_combined,extract_phase(current_phase=phase,content=df).iloc[1:]])
+            except:
+                None
+
+    return df_combined.reset_index(drop=True)
+
+def get_microsoft_lists_data():
+    certificate_path='certs/AKTISFLOWS.pem'
+    tenant_id='1629059d-1b1e-4108-bee7-f509b4c6e6ff'
+    client_id='09b4038a-b7ed-4784-99ef-09fcfe12eaef'
+    site_id='6b836720-11bd-422b-9a40-c86d69f7cdc8,ad83eab1-7d92-42fc-a66b-c6638ea73605'
+    list_id='273f2e45-131d-4b30-8c58-4d57aae31021'
+    thumbprint='440FC2B08CC7586C815CACE316B72C79C7FDDE21'
+    
+    with open(certificate_path, 'rb') as cert_file:
+        cert_data = cert_file.read()
+
+    # Build the MSAL confidential client application
+    authority = f'https://login.microsoftonline.com/{tenant_id}'
+    app = ConfidentialClientApplication(
+        client_id,
+        authority=authority,
+        client_credential={'thumbprint': thumbprint, 'private_key': cert_data}
+    )
+
+    # Get the access token
+    #token_response = app.acquire_token_for_client(scopes=['https://graph.microsoft.com/.default'])
+    token_response = {}
+    token_response["access_token"] = 'eyJ0eXAiOiJKV1QiLCJub25jZSI6Ijc3b2lxdlJRYmFwLTNTcDBoNnNuSnJabWRfRnVYYjBpajNrcmRfZENSRTgiLCJhbGciOiJSUzI1NiIsIng1dCI6IlQxU3QtZExUdnlXUmd4Ql82NzZ1OGtyWFMtSSIsImtpZCI6IlQxU3QtZExUdnlXUmd4Ql82NzZ1OGtyWFMtSSJ9.eyJhdWQiOiJodHRwczovL2dyYXBoLm1pY3Jvc29mdC5jb20iLCJpc3MiOiJodHRwczovL3N0cy53aW5kb3dzLm5ldC8xNjI5MDU5ZC0xYjFlLTQxMDgtYmVlNy1mNTA5YjRjNmU2ZmYvIiwiaWF0IjoxNzAyMjY4NDMzLCJuYmYiOjE3MDIyNjg0MzMsImV4cCI6MTcwMjI3MjMzMywiYWlvIjoiRTJWZ1lOZ3JMcjlWUHJqdnFaaHA4SlRqUzBPUEF3QT0iLCJhcHBfZGlzcGxheW5hbWUiOiJBS1RJU0ZMT1dTIiwiYXBwaWQiOiIwOWI0MDM4YS1iN2VkLTQ3ODQtOTllZi0wOWZjZmUxMmVhZWYiLCJhcHBpZGFjciI6IjIiLCJpZHAiOiJodHRwczovL3N0cy53aW5kb3dzLm5ldC8xNjI5MDU5ZC0xYjFlLTQxMDgtYmVlNy1mNTA5YjRjNmU2ZmYvIiwiaWR0eXAiOiJhcHAiLCJvaWQiOiI2NzExMGY2Zi1lYTVlLTQ4OTgtYmFiZC1iZDU5ZjAwNzA3MDgiLCJyaCI6IjAuQVN3QW5RVXBGaDRiQ0VHLTVfVUp0TWJtX3dNQUFBQUFBQUFBd0FBQUFBQUFBQUQyQUFBLiIsInJvbGVzIjpbIlVzZXIuUmVhZFdyaXRlLkFsbCIsIkdyb3VwLlJlYWRXcml0ZS5BbGwiXSwic3ViIjoiNjcxMTBmNmYtZWE1ZS00ODk4LWJhYmQtYmQ1OWYwMDcwNzA4IiwidGVuYW50X3JlZ2lvbl9zY29wZSI6Ik5BIiwidGlkIjoiMTYyOTA1OWQtMWIxZS00MTA4LWJlZTctZjUwOWI0YzZlNmZmIiwidXRpIjoiQ01jbWdFZDhpMEd3b2d4V0hWcElBQSIsInZlciI6IjEuMCIsIndpZHMiOlsiMDk5N2ExZDAtMGQxZC00YWNiLWI0MDgtZDVjYTczMTIxZTkwIl0sInhtc190Y2R0IjoxNTI5NTM5Mzg3fQ.SeyndSDCmTUNz_k2X5cXB8jO7OVGROsPZjGvXYr56h5IH-fUPyeQRmT0XkAvKHlD-Fdd0ee0mAG2azk7wpcGgdJTsV_oKQCFzAkPlw9qo0B2CdTIHn0jbwU7-LBFpsmXis1BMzMH-4vAJsuRp1-Z2xo1fnsV9fpnteoUWX1TRm80bT4D-NzvZtPfBsFNxgnTrobB3ORHyg3KXtZrCGuBYAlgh-0QRIJx9g_eoQTT0hfvjTc8M6ZJMdR0HLGxPkkbuEd-Y1E6Jw1yOjzPfIcR0HjPEsopRC9b5AXurPyqq2bbFe6lG-WfaDYnfsv4UxpbcgGB4oNl0hzy5o3flv6NTw'
+
+    filter_query="TicketStatus eq Complete"
+    # Make request to Microsoft Graph API
+    endpoint_url = f'https://graph.microsoft.com/v1.0/sites/{site_id}/lists/{list_id}/items?expand=fields(select=Title,TicketNumber,KTNumber,TicketStatus,ClientName,ProposalName_x0028_TicketSummary,ProposalVersion)&filter=fields/{filter_query}'
+    headers = {
+        'Authorization': f'Bearer {token_response["access_token"]}',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+    }
+
+    response = requests.get(endpoint_url, headers=headers)
+
+    if response.status_code == 200:
+        data = [item['fields'] for item in response.json()['value']]
+        df = pd.DataFrame(data)
+        return df
+    else:
+        return f'Error: {response.status_code} - {response.text}'
+    
+
+def print_progress(items):
+    # type: (ListItemCollection) -> None
+    print("Items read: {0}".format(len(items)))
+
+
+def query_large_list(target_list):
+    # type: (List) -> None
+    paged_items = (
+        target_list.items.paged(500, page_loaded=print_progress).get().execute_query()
+    )
+    #for index, item in enumerate(paged_items):  # type: int, ListItem
+    #    print("{0}: {1}".format(index, item.id))
+    # all_items = [item for item in paged_items]
+    # print("Total items count: {0}".format(len(all_items)))
+    return paged_items
+
+
+def get_total_count(target_list):
+    # type: (List) -> None
+    all_items = target_list.items.get_all(5000, print_progress).execute_query()
+    print("Total items count: {0}".format(len(all_items)))
+
+
+def Get_SharePoint_data(sp_list:str,filter:str):
+    site_url='https://projectfuelnow.sharepoint.com/sites/Fuelnow'
+
+    cert_credentials = {
+        "tenant" : '1629059d-1b1e-4108-bee7-f509b4c6e6ff',
+        "client_id" : '09b4038a-b7ed-4784-99ef-09fcfe12eaef',
+        "thumbprint": '440FC2B08CC7586C815CACE316B72C79C7FDDE21',
+        "cert_path": 'certs/AKTISFLOWS.pem'
+    }
+
+    ctx = ClientContext(site_url).with_client_certificate(**cert_credentials)
+
+    sp_lists = ctx.web.lists
+    s_list = sp_lists.get_by_title(sp_list)
+
+    if filter == '*':
+        l_items = query_large_list(s_list)
+    else:
+        l_items = s_list.items.filter(filter).get()
+    list_fields = s_list.fields
+    ctx.load(list_fields)
+    ctx.execute_query()
+    #column_names = [field.properties['Title'] for field in list_fields]
+    #print(column_names)
+
+    internal_names = [field.properties['InternalName'] for field in list_fields]
+    #print(internal_names)
+ 
+    data_dict_list = []
+    for item in l_items:
+        item_data_dict = {}
+        for property_name in internal_names:
+            # Use try-except to handle cases where the property may not exist
+            try:
+                property_value = item.properties[property_name]
+            except KeyError:
+                property_value = None  # or any default value you want to assign
+            item_data_dict[property_name] = property_value
+        data_dict_list.append(item_data_dict)
+
+    return data_dict_list
+

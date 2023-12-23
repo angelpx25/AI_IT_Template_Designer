@@ -1,0 +1,2 @@
+AzureAppId/ClientId    : 09b4038a-b7ed-4784-99ef-09fcfe12eaef
+Certificate Thumbprint : 440FC2B08CC7586C815CACE316B72C79C7FDDE21

@@ -6,27 +6,24 @@ import utils.utils as ut
 import config.settings as settings
 
 def home():
-    debugmode,pvalues,client,phase,procedure,technology,make,products,notes = sb.sidebar()
-    proposal_name = pvalues['pname'] if pvalues['pname'] != '' else "Proposal Name"
-    st.subheader(proposal_name, divider="grey")
-    if client == 'Select a Client':
-        #st.write(ut.read_text_file('./README.md'))
+    sbvalues,df = sb.sidebar()
+    proposal_name = sbvalues['pname'] if sbvalues['pname'] != '' else "Proposal Name"
+    if not sbvalues['continue']:
+        st.subheader('HOW TO USE THE TOOL', divider="grey")
         st.markdown(ut.read_text_file('./README.md'), unsafe_allow_html=True)
     else:
-        st.write("<b>Proposal number:</b> " + pvalues['pnumber'], unsafe_allow_html=True)
-        st.write("<b>Business requirements:</b> " + pvalues['breq'], unsafe_allow_html=True)
-        st.write("<b>Maintenance windows:</b> " + str(pvalues['mwin']), unsafe_allow_html=True)
-        client_file_path = f"./templates/clients/{client}/{client}.txt"
-        procedure_file_path = f"./templates/procedures/{procedure}/{technology}.txt"
-        client_file_content = ut.read_text_file(client_file_path)
-        procedure_file_content = ut.read_text_file(procedure_file_path)
+        st.subheader(proposal_name, divider="grey")
+        st.write("<b>Proposal number:</b> " + sbvalues['pnumber'], unsafe_allow_html=True)
+        st.write("<b>Business requirements:</b> " + sbvalues['breq'], unsafe_allow_html=True)
+        st.write("<b>Maintenance windows:</b> " + str(sbvalues['mwin']), unsafe_allow_html=True)
+
         #st.write(f"{client_file_content}\n\n{procedure_file_content}")
-        if client_file_content == None or procedure_file_content == None:
+        if df.empty:
             content = "Content could not be found"
             st.error(content)
         else:
             try:
-                content = ut.prepare_content(client,phase,procedure,technology)
+                content = df
                 if st.toggle("Plain Text:"):
                     content = content.to_csv(index=False, header=False,sep='\t',lineterminator='\n')
                     st.code(content.replace('-', ' '))
@@ -41,13 +38,13 @@ def home():
                                     variables[variable] = st.text_input(variable)
                                     content.replace(f"<{variable}>", variables[variable],inplace=True,regex=True)
                         content = content.applymap(lambda x: x.lstrip('*') if isinstance(x, str) else x)
-                    content.replace('<make>', make, regex=True, inplace=True)
+                    content.replace('<make>', sbvalues['make'], regex=True, inplace=True)
                     content.replace('-', '   ', regex=True, inplace=True)
-                    if debugmode:
+                    if st.session_state['debugmode']:
                         st.write(len(content))
-                    st.dataframe(content,hide_index=True,use_container_width=True,height=len(content)*settings.PROPOSAL_PAGE_WIDTH)
+                    new_df = st.data_editor(content,hide_index=True,use_container_width=True,height=len(content)*settings.PROPOSAL_PAGE_WIDTH)
             except Exception as e:
-                if debugmode:
+                if st.session_state['debugmode']:
                     st.error(f"Fix the following error {e}")
                 else:
                     st.error('The data does not exists')

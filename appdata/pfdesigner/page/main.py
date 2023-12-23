@@ -3,15 +3,15 @@ import config.settings as settings
 import streamlit as st
 from page.home import home
 
-def main(config, authenticator, name, authentication_status, username):
+def main(config, authenticator, name, authentication_status, username ):
     if authentication_status:
         st.sidebar.subheader('Account Details:')
         st.sidebar.write(f'Welcome *{name} {username}*')
         with st.sidebar:
-            col1,col2,col3= st.columns(3)
+            col1,col2,col3,col4 = st.columns(4)
             with col1:
                 if not st.session_state['page'] == 'updateaccount':
-                    if st.button('Update Account',use_container_width=True):
+                    if st.button('Edit Profile',use_container_width=True):
                         st.session_state['page'] = 'updateaccount'
                         st.experimental_rerun()
                 elif st.button('Back',use_container_width=True):
@@ -19,7 +19,7 @@ def main(config, authenticator, name, authentication_status, username):
                         st.experimental_rerun()
             with col2:
                 if not st.session_state['page'] == 'changepass':
-                    if st.button('Change Password',use_container_width=True):
+                    if st.button('Password',use_container_width=True):
                         st.session_state['page'] = 'changepass'
                         st.experimental_rerun()
                 else:
@@ -28,6 +28,9 @@ def main(config, authenticator, name, authentication_status, username):
                         st.experimental_rerun()
             with col3:
                 authenticator.logout('Logout')
+            with col4:
+                st.button('Refresh Data',use_container_width=True,key='refresh')
+                
         if st.session_state['page'] == 'updateaccount':
             try:
                 if authenticator.update_user_details(username=username,form_name='Reset Password'):
