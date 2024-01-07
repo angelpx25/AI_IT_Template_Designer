@@ -7,6 +7,7 @@ HOME_TITLE="DDE Template Designer"
 HOME_SIDEBAR_INFO_SUBHEADER="Proposal Information:"
 HOME_SIDEBAR_CONTENT_SUBHEADER="Proposal Content:"
 HOME_SIDEBAR_SETTINGS_SUBHEADER="Proposal Settings:"
+HOME_SIDEBAR_CONVERTER="Upload Content"
 
 HOME_INTRODUCTION="Welcome to Project Fuel Template Designer, This tool was developed to help Project Fuel engineers to automate the proposal design task."
 HOME_PRIVACY="Every content in this tool is property of Project Fuel LLC"
@@ -16,9 +17,9 @@ PROPOSAL_PAGE_WIDTH=36
 
 CLIENT_DEFAULT_TEXT="Select a Client"
 TECHNOLOGY_DEFAULT_TEXT="Select Technology"
-MAKE_DEFAULT_TEXT="Select Make"
+VERSION_DEFAULT_TEXT="Select Version"
 PROCEDURE_DEFAULT_TEXT="Select Procedure"
-LIBRARY_DEFAULT_TEXT="Select Library"
+LIBRARY_DEFAULT_TEXT="Select Library / How to Use the Tool"
 
 LIBRARY_DEFAULT_PATH="./templates/libraries"
 

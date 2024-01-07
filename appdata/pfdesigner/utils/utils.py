@@ -3,6 +3,7 @@ import requests
 from msal import ConfidentialClientApplication
 from office365.sharepoint.client_context import ClientContext
 
+import os
 import re
 import io
 import openpyxl
@@ -18,7 +19,6 @@ def number_to_letter(n):
         return None  # Handle values outside the range a-z
 
 def find_cell_variables(content):
-    import streamlit as st
     pattern = r'<(.*?)>'
     #pattern = r'<([^<>]+)>'
     found_cells = []
@@ -53,10 +53,10 @@ def is_number(s):
 
 def insert_content(pvalues):
     import streamlit as st
-    content_to_insert = {'Technology': pvalues['technology'],'Make': pvalues['make'],'Procedure': pvalues['procedure']}
+    content_to_insert = {'Technology': pvalues['technology'],'Version': pvalues['version'],'Procedure': pvalues['procedure']}
 
     content = {'Technology': st.session_state['Technology'],
-               'Make': st.session_state['Make'],
+               'Version': st.session_state['Version'],
                'Procedure': st.session_state['Procedure']}
 
     content_df = pd.DataFrame(content)
@@ -69,7 +69,7 @@ def insert_content(pvalues):
     content_combined = content_combined.drop_duplicates()
     if not content_combined.empty:
         st.session_state['Technology'] = content_combined['Technology'].tolist()
-        st.session_state['Make'] = content_combined['Make'].tolist()
+        st.session_state['Version'] = content_combined['Version'].tolist()
         st.session_state['Procedure'] = content_combined['Procedure'].tolist()
     else:
         st.sidebar.warning('Content to insert empty')
@@ -98,7 +98,6 @@ def read_text_file(file_path):
         return None
     
 def get_variables_from_excel(path):
-    pattern = r'<(.*?)>'
     workbook = openpyxl.load_workbook(path)
     worksheet = workbook.active
     cell_values = find_cell_variables(worksheet)
@@ -211,6 +210,12 @@ def extract_phase(current_phase:str,content:pd.DataFrame):
         phase_content = content.loc[phase_index:]
     return phase_content
 
+def read_procedure(procedure_file_path:str):
+    procedure_file_content = read_text_file(procedure_file_path)
+    test= io.StringIO(procedure_file_content)
+    df = pd.read_csv(test, sep='|',skip_blank_lines=False)
+    df['Task'].fillna("",inplace=True,)
+    return df
 
 def prepare_content(sbvalues:dict,data:dict,templates_path:str):
     #client_file_path = f"./templates/clients/{client}/{client}.txt"
@@ -231,24 +236,41 @@ def prepare_content(sbvalues:dict,data:dict,templates_path:str):
 
     for index,procedure in enumerate(data['Procedure']):
         try:
-            procedure_file_path = templates_path + f"/{sbvalues['library']}/procedures/{procedure}/{data['Technology'][index]}.txt"
-            procedure_file_content = read_text_file(procedure_file_path)
-            content = pd.read_csv(io.StringIO(procedure_file_content), sep='|')
-            df_list.append(extract_phase(current_phase=data['Phase'][index],content=content))
+            procedure_file_path = templates_path + f"/{data['Library'][index]}/procedures/{procedure}/{data['Technology'][index]}/{data['Version'][index]}.txt"
+            df_list.append(extract_phase(current_phase=data['Phase'][index],content=read_procedure(procedure_file_path)))
         except Exception as e:
             print(f"Error processing procedure {procedure}: {e}")
-    
     for phase in phase_mapping:
         first = True
-        for df in df_list:
+        for index,df in enumerate(df_list):
             try:
                 if first:
+                    if data['psettings'][index]:
+                        for key, value in data['psettings'][index].items():
+                            df['Task'] = df['Task'].apply(lambda x: x.replace(f"<{key}>", str(value)))
+                            if key == 'Quantity':
+                                df.loc[df['Time'].notna(), 'Multiplier'] = value
+                            elif key == 'Onsite Service':
+                                df.loc[df['Time'].notna(), 'Multiplier'] = value
                     df_combined = pd.concat([df_combined,extract_phase(current_phase=phase,content=df)])
                     first = False
                 else:
+                    if data['psettings'][index]:
+                        for key, value in data['psettings'][index].items():
+                            df['Task'] = df['Task'].apply(lambda x: x.replace(f"<{key}>", str(value)))
+                            if key == 'Quantity':
+                                df.loc[df['Time'].notna(), 'Multiplier'] = value
+                            elif key == 'Onsite Service':
+                                df.loc[df['Time'].notna(), 'Multiplier'] = value
                     df_combined = pd.concat([df_combined,extract_phase(current_phase=phase,content=df).iloc[1:]])
             except:
                 None
+
+    for item in data['psettings']:
+        for option, value in item.items():
+            df_combined.apply(lambda x: x.replace(f"<{option}>", str(value)))
+                
+    df_combined.loc[df_combined['Time'].notna() & df_combined['Multiplier'].isna(), 'Multiplier'] = 1
 
     return df_combined.reset_index(drop=True)
 
@@ -311,6 +333,15 @@ def query_large_list(target_list):
     # print("Total items count: {0}".format(len(all_items)))
     return paged_items
 
+def excel_to_pipe_delimited(input_file):
+    df = pd.read_excel(input_file)
+    # Combine the columns with '|' separator
+    #df = df['Task'].astype(str) + '|' + df['Time'].astype(str)
+    return df
+
+def pipe_delimited_to_csv(input_df,output_file_path):
+    # Save the new DataFrame to a pipe-delimited text file
+    input_df.to_csv(output_file_path, sep='|', index=False, header=True, na_rep='')
 
 def get_total_count(target_list):
     # type: (List) -> None
@@ -360,3 +391,62 @@ def Get_SharePoint_data(sp_list:str,filter:str):
 
     return data_dict_list
 
+def calculate_proposal_time(df: pd.DataFrame):
+    #df.loc[df['Time'].notna(), 'Multiplier'] = Quantity
+    df['Total'] = df.apply(lambda row: row['Time'] * row['Multiplier'] if row['Time'] != '' and row['Multiplier'] != '' else None,axis=1)
+
+    last_column = df.columns[-1]
+    columns = [col for col in df.columns if col != 'Total']
+    columns.insert(1,last_column)
+    df = df[columns]
+
+    rounding_series = [0.02, 0.04, 0.08, 0.16, 0.25, 0.33, 0.50, 0.75]
+    asterisk_indices = df[df['Task'].str.startswith('*')].index
+
+    for i in range(len(asterisk_indices) - 1):
+        start_index = asterisk_indices[i]
+        end_index = asterisk_indices[i + 1]
+        
+        total_sum = df.loc[start_index+1:end_index-1, 'Total'].sum()
+        decimal_part = total_sum % 1
+        whole_part = total_sum // 1
+        rounded_sum = whole_part + min(rounding_series, key=lambda x: abs(x - decimal_part))
+
+        df.at[start_index, 'Hours'] = rounded_sum
+    
+    last_column = df.columns[-1]
+    columns = [col for col in df.columns if col != 'Hours']
+    columns.insert(1,last_column)
+    df = df[columns]
+
+    return df
+
+
+def add_spaces_to_df_phases(df: pd.DataFrame):
+    trigger_values = ['Prepare:','Implement:', 'Operate:', '*Execute Test Plan:', 'Optimize:']
+
+    for trigger_value in trigger_values:
+        if trigger_value == 'Prepare:':
+            continue
+        else:
+            mask = df['Task'] == trigger_value
+            indices_to_insert = df.index[mask]  # Get indices where the trigger value is found
+
+            for idx in indices_to_insert:
+                df = pd.concat([df.loc[:idx-1], pd.DataFrame({'Task': ['']}), df.loc[idx:]]).reset_index(drop=True)
+
+def add_spaces_to_df_subphases(df: pd.DataFrame):
+    phases_values = ['Prepare:','Implement:', 'Operate:', '*Execute Test Plan:', 'Optimize:']
+    count_starts_with_asterisk = len(df[df['Task'].str.startswith('*')])
+    for idx in range(count_starts_with_asterisk):
+        for index, row in df.iterrows():
+            if row['Task'].startswith('*'):
+                if df.loc[index-1, 'Task'] == '':
+                    continue
+                elif index > 0 and df.loc[index-1, 'Task'] in phases_values:
+                    continue
+                else:
+                    new_row = pd.DataFrame({'Task': ['']}, index=[index])
+                    df = pd.concat([df.iloc[:index], new_row, df.iloc[index:]]).reset_index(drop=True)
+                    break
+    return df

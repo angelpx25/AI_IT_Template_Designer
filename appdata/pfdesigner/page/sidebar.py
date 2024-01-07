@@ -4,8 +4,8 @@ import streamlit as st
 import config.settings as settings
 import utils.utils as ut
 import os
-import openpyxl
 import pandas as pd
+
 
 def sidebar_mode():
     selected_function = st.selectbox("Application mode:", options=['Proposal Template Designer', 'AI Proposal Development'], placeholder='Select Mode')
@@ -14,8 +14,8 @@ def sidebar_mode():
 def reset_proposal_settings(psettings,pvalues):
     col1,col2,col3 = st.columns(3)
     pvalues['mwin'] = col1.number_input(label='Maintenace Windows',min_value=0,max_value=10,step=1,value=0)
-    psettings['standbytime'] = "{:.2f}".format(float(col2.number_input(label='Standby Time (hours)',min_value=0.00,max_value=50.00,step=1.00,value=0.00)))
-    psettings['closuretime'] = "{:.2f}".format(float(col3.number_input(label='Closure Time (hours)',min_value=0.00,max_value=50.00,step=1.00,value=0.25)))
+    pvalues['standbytime'] = "{:.2f}".format(float(col2.number_input(label='Standby Time (hours)',min_value=0.00,max_value=50.00,step=1.00,value=0.00)))
+    pvalues['closuretime'] = "{:.2f}".format(float(col3.number_input(label='Closure Time (hours)',min_value=0.00,max_value=50.00,step=1.00,value=0.25)))
     with st.expander(label='Advance Settings'):
             for key,value in psettings.items():
                 psettings[key] = st.text_input(label=key,value=' ',disabled=True)
@@ -24,8 +24,8 @@ def reset_proposal_settings(psettings,pvalues):
 def proposal_settings(psettings,pvalues):
     col1,col2,col3 = st.columns(3)
     pvalues['mwin'] = col1.number_input(label='Maintenace Windows',min_value=0,max_value=10,step=1)
-    psettings['standbytime'] = "{:.2f}".format(float(col2.number_input(label='Standby Time (hours)',min_value=0.00,max_value=50.00,step=1.00)))
-    psettings['closuretime'] = "{:.2f}".format(float(col3.number_input(label='Closure Time (hours)',min_value=0.00,max_value=50.00,step=0.25)))
+    pvalues['standbytime'] = "{:.2f}".format(float(col2.number_input(label='Standby Time (hours)',min_value=0.00,max_value=50.00,step=1.00)))
+    pvalues['closuretime'] = "{:.2f}".format(float(col3.number_input(label='Closure Time (hours)',min_value=0.00,max_value=50.00,step=0.25)))
     psettings['Proposal Name [Ticket]'] = f"{pvalues['pname']} [{pvalues['pnumber']}]"
     psettings['Enter Business Requirements'] = pvalues['breq']
     psettings['Day Prior to Maintenance Window'] = f"Day Prior to Maintenance Window ({pvalues['mwin']})"
@@ -53,16 +53,24 @@ def load_sharepoint_data_KT_info(KTNumber:str):
     return df
 
 def sidebar():
-    sbvalues= {'pname':'','pnumber':'','breq':'','client':'Select a Client','phase':'','products':False,'notes':False,'library':'','technology':'','make':'','procedure':'','phase':'','continue':False}
+    sbvalues= {'settings': {},'pname':'','pnumber':'','breq':'','client':'Select a Client','phase':'','products':False,'notes':False,'library':'','technology':'','version':'','procedure':'','phase':'','continue':False}
     psettings = {}
 
     if 'content' not in st.session_state:
         st.session_state['content'] = {}
         st.session_state['content']['Technology'] = []
-        st.session_state['content']['Make'] = []
+        st.session_state['content']['Version'] = []
         st.session_state['content']['Procedure'] = []
+        st.session_state['content']['Library'] = []
         st.session_state['content']['Phase'] = []
+        st.session_state['content']['psettings'] = []
 
+    if 'Library' not in st.session_state['content']:
+        st.session_state['content']['Technology'] = []
+        st.session_state['content']['Version'] = []
+        st.session_state['content']['Procedure'] = []
+        st.session_state['content']['Library'] = []
+    
     if 'debugmode' not in st.session_state:
         st.session_state['debugmode'] = False
     
@@ -113,14 +121,11 @@ def sidebar():
                 if sbvalues['pnumber']:
                     clients_list = [settings.CLIENT_DEFAULT_TEXT]
                     clients_list.extend(os.listdir("./templates/clients"))
-                    if dfdata['Title'].values[0] not in clients_list:
-                        sbvalues['client'] = settings.CLIENT_DEFAULT_TEXT
-                    else:
-                        sbvalues['client'] = st.text_input("Company:",value=dfdata['Title'].values[0],disabled=True)
+                    sbvalues['client'] = st.text_input("Company:",value=dfdata['Title'].values[0],disabled=True)
 
             st.subheader(settings.HOME_SIDEBAR_CONTENT_SUBHEADER)
             
-            if sbvalues['client'] != settings.CLIENT_DEFAULT_TEXT:
+            if dfdata['Title'].values[0] in clients_list:
                 client_path = f"./templates/clients/{sbvalues['client']}/Template.xlsx"
                 library_list = [settings.LIBRARY_DEFAULT_TEXT]
                 library_list.extend(os.listdir(f"{settings.LIBRARY_DEFAULT_PATH}" ))
@@ -129,27 +134,66 @@ def sidebar():
                 col1,col2,col3 = st.columns(3)
                 with col1:
                     if sbvalues['library'] != settings.LIBRARY_DEFAULT_TEXT:
-                        technology_list = [settings.TECHNOLOGY_DEFAULT_TEXT]
-                        technology_path = f"{settings.LIBRARY_DEFAULT_PATH}/{sbvalues['library']}/technologies"
-                        if os.path.exists(technology_path):
-                            technology_list.extend(os.listdir(technology_path))
-                            sbvalues['technology'] = st.selectbox("Techonology:", technology_list)
-                with col2:
-                    if sbvalues['technology'] != settings.TECHNOLOGY_DEFAULT_TEXT and sbvalues['library'] != settings.LIBRARY_DEFAULT_TEXT:
-                        make_list = [settings.MAKE_DEFAULT_TEXT]
-                        make_path = f"{settings.LIBRARY_DEFAULT_PATH}/{sbvalues['library']}/technologies/{sbvalues['technology']}"
-                        if os.path.exists(make_path):
-                            make_list.extend(os.listdir(make_path))
-                            sbvalues['make'] = st.selectbox("Make:", make_list)
-                with col3:
-                    if (sbvalues['make'] != settings.MAKE_DEFAULT_TEXT and sbvalues['library'] != settings.LIBRARY_DEFAULT_TEXT and sbvalues['technology'] != settings.TECHNOLOGY_DEFAULT_TEXT):
                         procedure_list = [settings.PROCEDURE_DEFAULT_TEXT]
                         procedure_path = f"{settings.LIBRARY_DEFAULT_PATH}/{sbvalues['library']}/procedures"
                         if os.path.exists(procedure_path):
                             procedure_list.extend(os.listdir(procedure_path))
                             sbvalues['procedure'] = st.selectbox("Procedure:", procedure_list)
+                with col2:
+                    if sbvalues['procedure'] != settings.PROCEDURE_DEFAULT_TEXT and sbvalues['library'] != settings.LIBRARY_DEFAULT_TEXT:
+                        technology_list = [settings.TECHNOLOGY_DEFAULT_TEXT]
+                        technology_path = f"{settings.LIBRARY_DEFAULT_PATH}/{sbvalues['library']}/procedures/{sbvalues['procedure']}"
+                        if os.path.exists(technology_path):
+                            technology_list.extend(os.listdir(technology_path))
+                            sbvalues['technology'] = st.selectbox("Techonology:", map(lambda file: os.path.splitext(file)[0], technology_list))
+                with col3:
+                    if (sbvalues['procedure'] != settings.PROCEDURE_DEFAULT_TEXT and sbvalues['library'] != settings.LIBRARY_DEFAULT_TEXT and sbvalues['technology'] != settings.TECHNOLOGY_DEFAULT_TEXT):
+                        version_list = [settings.VERSION_DEFAULT_TEXT, 'New Content']
+                        version_path = f"{settings.LIBRARY_DEFAULT_PATH}/{sbvalues['library']}/procedures/{sbvalues['procedure']}/{sbvalues['technology']}"
+                        if os.path.exists(version_path):
+                            version_list.extend(os.listdir(version_path))
+                            sbvalues['version'] = st.selectbox("Version:", map(lambda file: os.path.splitext(file)[0], version_list))
 
-                if sbvalues['library'] != settings.LIBRARY_DEFAULT_TEXT and os.path.exists(technology_path):
+                if (sbvalues['version'] != settings.VERSION_DEFAULT_TEXT and sbvalues['procedure'] != settings.PROCEDURE_DEFAULT_TEXT and sbvalues['library'] != settings.LIBRARY_DEFAULT_TEXT and sbvalues['technology'] != settings.TECHNOLOGY_DEFAULT_TEXT):
+                    procedure_file_path = f"./templates/libraries/{sbvalues['library']}/procedures/{sbvalues['procedure']}/{sbvalues['technology']}/{sbvalues['version']}.txt"
+                    if os.path.exists(procedure_file_path):
+                        procedure_file_content = ut.read_procedure(procedure_file_path)
+                        found_variables = ut.find_cell_variables(ut.find_cell_variables(procedure_file_content))
+                        variables = {}
+                        seen_variables = set()
+                        with st.expander('Procedure Settings'):
+                            for variable in found_variables:
+                                if variable not in seen_variables:
+                                    if variable not in variables.keys():
+                                        if 'Quantity' in variable:
+                                            variables[variable] = st.number_input(variable,format="%g",step=1,min_value=0,max_value=999)
+                                        else:
+                                            variables[variable] = st.text_input(variable)
+                                        #procedure_file_content.replace(f"<{variable}>", variables[variable],inplace=True,regex=True)
+                                    seen_variables.add(variable)
+                                else:
+                                    continue
+                if (sbvalues['version'] == 'New Content' and sbvalues['procedure'] != settings.PROCEDURE_DEFAULT_TEXT and sbvalues['library'] != settings.LIBRARY_DEFAULT_TEXT and sbvalues['technology'] != settings.TECHNOLOGY_DEFAULT_TEXT):
+                    with st.expander(label=settings.HOME_SIDEBAR_CONVERTER,expanded=False):
+                        version_name = st.text_input('Version Name:')
+                        uploaded_file = st.file_uploader("Upload an Excel File", type=['xlsx','xls'])
+                        if st.button(label='Add Content'):
+                            if uploaded_file is not None and version_name:
+                                output_file_path = f"./templates/libraries/{sbvalues['library']}/procedures/{sbvalues['procedure']}/{sbvalues['technology']}/{version_name}.txt"
+                                if not os.path.exists(output_file_path):
+                                    try:
+                                        df = ut.excel_to_pipe_delimited(uploaded_file)
+                                        ut.pipe_delimited_to_csv(input_df=df,output_file_path=output_file_path)
+                                    except Exception as e:
+                                        None
+                                    finally:
+                                        st.info('Content Added')
+                                else:
+                                    st.warning("File content exsist, select a different name.")
+                            else:
+                                st.warning('Insert version name and upload content in the proper format.')
+
+                if sbvalues['library'] != settings.LIBRARY_DEFAULT_TEXT and os.path.exists(procedure_path):
                     col1,col2,col3 = st.columns(3)
                     with col1:
                         sbvalues['phase'] = st.selectbox("Phase:", ['All', 'Plan', 'Prepare', 'Implement','Operate','Optimize'], key='phase')
@@ -160,10 +204,19 @@ def sidebar():
 
                     if st.session_state['debugmode']:
                         st.write(st.session_state['content'])
-
+                    
                     existing_content_df = pd.DataFrame(st.session_state['content'])
                     existing_content_df['Select'] = False
-                    edited_content = st.data_editor(existing_content_df,column_config={"Select": st.column_config.CheckboxColumn('Delete?',required=True)},hide_index=True,num_rows="fixed",use_container_width=True)
+                    column_config = {
+                    "Technology": st.column_config.TextColumn(disabled=True),
+                    "Version": st.column_config.TextColumn(disabled=True),
+                    "Procedure": st.column_config.TextColumn(disabled=True),
+                    "Phase": st.column_config.TextColumn(disabled=True),
+                    "Library": None,
+                    "Select": st.column_config.CheckboxColumn('Delete?', required=True, disabled=False),
+                    "psettings": None
+                    }
+                    edited_content = st.data_editor(existing_content_df,column_config=column_config,hide_index=True,num_rows="fixed",use_container_width=True)
                     col1, col2,col3 = st.columns(3)
 
                     if st.session_state['debugmode']:
@@ -171,41 +224,49 @@ def sidebar():
 
                     with col1:
                         if st.button('Insert Content',use_container_width=True):
-                            content_to_insert = {'Select' : False,'Technology': sbvalues['technology'],'Make': sbvalues['make'],'Procedure': sbvalues['procedure'], 'Phase': sbvalues['phase']}
-                            content_combined = pd.concat([existing_content_df, pd.DataFrame([content_to_insert])])
-                            duplicate = False
-                            for duplicated in content_combined.duplicated():
-                                if duplicated:
-                                    duplicate = True
-                                    st.sidebar.warning('Content already exists')
+                            cont = False
+                            for variable in variables:
+                                if variables[variable] == '':
+                                    st.sidebar.warning(f"Missing value: {variable}")
+                                    cont = False
                                     break
-                            if not duplicate:
-                                #client_file_path = f"./templates/clients/{dfdata['Title'].values[0]}+/{sbvalues['client']}.txt"
-                                #client_file_content = ut.read_text_file(client_file_path)
-                                procedure_file_path = f"./templates/libraries/{sbvalues['library']}/procedures/{sbvalues['procedure']}/{sbvalues['technology']}.txt"
-                                procedure_file_content = ut.read_text_file(procedure_file_path)
-                                if not (procedure_file_content == None):
-                                    st.session_state['content']['Technology'].append(sbvalues['technology'])
-                                    st.session_state['content']['Make'].append(sbvalues['make'])
-                                    st.session_state['content']['Procedure'].append(sbvalues['procedure'])
-                                    st.session_state['content']['Phase'].append(sbvalues['phase'])
-                                    st.experimental_rerun()
-                                else:
-                                    st.sidebar.warning(f'Content does not exists.')
+                                cont = True
+                            if cont:
+                                content_to_insert = {'Select' : False,'Library': sbvalues['library'], 'Technology': sbvalues['technology'],'Version': sbvalues['version'],'Procedure': sbvalues['procedure'], 'Phase': sbvalues['phase'], 'psettings': variables}
+                                content_combined = pd.concat([existing_content_df, pd.DataFrame([content_to_insert])])
+                                duplicate = False
+                                for duplicated in content_combined.duplicated(['Technology','Procedure','Version']):
+                                    if duplicated:
+                                        duplicate = True
+                                        st.sidebar.warning('Content already exists')
+                                        break
+                                if not duplicate:
+                                    #client_file_path = f"./templates/clients/{dfdata['Title'].values[0]}+/{sbvalues['client']}.txt"
+                                    #client_file_content = ut.read_text_file(client_file_path)
+                                    procedure_file_path = f"./templates/libraries/{sbvalues['library']}/procedures/{sbvalues['procedure']}/{sbvalues['technology']}/{sbvalues['version']}.txt"
+                                    procedure_file_content = ut.read_procedure(procedure_file_path)
+                                    
+                                    if not procedure_file_content.empty:
+                                        st.session_state['content']['Library'].append(sbvalues['library'])
+                                        st.session_state['content']['Technology'].append(sbvalues['technology'])
+                                        st.session_state['content']['Version'].append(sbvalues['version'])
+                                        st.session_state['content']['Procedure'].append(sbvalues['procedure'])
+                                        st.session_state['content']['Phase'].append(sbvalues['phase'])
+                                        st.session_state['content']['psettings'].append(variables)
+                                        st.experimental_rerun()
+                                    else:
+                                        st.sidebar.warning(f'Content does not exists.')
                     with col2:
                         if st.button('Delete Content',use_container_width=True):
-                            edited_content = pd.DataFrame(edited_content)
-                            edited_content.drop(edited_content[edited_content['Select'] == True].index, inplace=True)
-                            edited_content.drop('Select',axis=1,inplace=True)
-                            st.session_state['content'] = edited_content.to_dict(orient='list')
+                            for selected in edited_content[edited_content['Select'] == True].index:
+                                for key in st.session_state['content'].keys():
+                                        del st.session_state['content'][key][selected]
                             st.experimental_rerun()
                     with col3:
                         reset = st.button('Reset Settings',use_container_width=True)
 
-                    if st.session_state['content']['Technology']:
-
+                    if 'Technology' in st.session_state['content']:
                         st.subheader(settings.HOME_SIDEBAR_SETTINGS_SUBHEADER)
-
                         if reset:
                             psettings = reset_proposal_settings(psettings,sbvalues)
                         else:
@@ -214,38 +275,18 @@ def sidebar():
                                 for cell_value in cell_values:
                                     if cell_value not in psettings:
                                         psettings[cell_value] = ''
-                                psettings = proposal_settings(psettings,sbvalues)
-                    col1,col2,col3 = st.columns(3)
-                    with col1:     
-                        prepared = False
-                        if st.button("Prepare",use_container_width=True,disabled=not st.session_state['content']['Technology']):
-                            with st.spinner():
-                                df = ut.prepare_content(sbvalues,st.session_state['content'],templates_path=settings.LIBRARY_DEFAULT_PATH)
-                                workbook = openpyxl.load_workbook(f"./templates/clients/{sbvalues['client']}/Template.xlsx")
-                                workbook = ut.replace_cell_in_coordinates(workbook,psettings)
-                                workbook = ut.insert_dataframe_in_excel(workbook, df)
-                                data = ut.download_template(workbook)
-                                prepared = True
-                    with col2:
-                        if prepared:
-                            st.download_button(label="Download", data=data, file_name=f"{sbvalues['pname']} [{sbvalues['pnumber']}].xlsx", key='download',use_container_width=True,disabled=False)
-                            workbook.close
-                        else:
-                            st.button(label="Download",use_container_width=True,disabled=True)
-                    with col3:
-                        st.button(label='Restart',use_container_width=True)
-                
+                                sbvalues['settings'] = proposal_settings(psettings,sbvalues)                 
         #Warnings:
         if sbvalues['library'] == settings.LIBRARY_DEFAULT_TEXT:
             st.warning('Select a Library')
             sbvalues['continue'] = False
-        elif sbvalues['client'] == settings.CLIENT_DEFAULT_TEXT:
+        elif sbvalues['client'] not in clients_list:
             st.warning('Client Template has not been added')
             sbvalues['continue'] = False
         elif not sbvalues['breq']:
             st.warning('Insert business requirements')
             sbvalues['continue'] = False
-        elif not os.path.exists(technology_path):
+        elif not os.path.exists(procedure_path):
             st.warning('Library is empty')
             sbvalues['continue'] = False
         elif not sbvalues['pname']:
@@ -257,7 +298,7 @@ def sidebar():
         elif not os.path.exists(client_path):
             st.warning('Company template does not exists')
             sbvalues['continue'] = False
-        elif 'content' not in st.session_state or st.session_state['content']['Technology'] == []:
+        elif 'content' not in st.session_state or 'Technology' not in st.session_state['content']:
             st.warning('Insert Content')
             sbvalues['continue'] = False
         else:
