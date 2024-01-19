@@ -54,6 +54,7 @@ def home():
                     
                                     #content = pd.concat([content.iloc[:index-1], pd.DataFrame({'Task': ['']}), content.iloc[index:]]).reset_index(drop=True)
 
+                    content.loc[~content['Task'].str.startswith('*'), 'Task'] = ' ' + content['Task']
                     content.replace('-', '    ', regex=True, inplace=True)
                     content['Select'] = False
                     
@@ -69,8 +70,10 @@ def home():
                     "Multiplier": st.column_config.NumberColumn(disabled=False,default=int()),
                     "Select": st.column_config.CheckboxColumn('Select', required=True, disabled=False),
                     }
-
-                new_df = st.data_editor(content,column_config=column_config,hide_index=True,use_container_width=True,height=len(content)*settings.PROPOSAL_PAGE_WIDTH)
+                st.write(st.session_state)
+                new_df = st.data_editor(content,num_rows='dynamic',column_config=column_config,hide_index=True,use_container_width=True,height=len(content)*settings.PROPOSAL_PAGE_WIDTH)
+                st.write(st.session_state)
+                content.loc[~content['Task'].str.startswith('*'), 'Task'] = ' ' + content['Task']
 
                 col31,col32 = st.columns(2)
                 with col31:

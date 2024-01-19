@@ -269,8 +269,8 @@ def prepare_content(sbvalues:dict,data:dict,templates_path:str):
     for item in data['psettings']:
         for option, value in item.items():
             df_combined.apply(lambda x: x.replace(f"<{option}>", str(value)))
-                
-    df_combined.loc[df_combined['Time'].notna() & df_combined['Multiplier'].isna(), 'Multiplier'] = 1
+    if data['psettings']:           
+        df_combined.loc[df_combined['Time'].notna() & df_combined['Multiplier'].isna(), 'Multiplier'] = 1
 
     return df_combined.reset_index(drop=True)
 
